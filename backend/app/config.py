@@ -15,6 +15,10 @@ class Config:
         self.download_dir = str(DEFAULT_DOWNLOAD_DIR)
         self.max_concurrent_downloads = 2
         self.load()
+        try:
+            Path(self.download_dir).mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass
 
     def load(self):
         if CONFIG_FILE.exists():

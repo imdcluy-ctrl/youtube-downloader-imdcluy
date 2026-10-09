@@ -1,6 +1,17 @@
+---
+title: StreamForge YouTube Downloader
+emoji: ⚡
+colorFrom: blue
+colorTo: purple
+sdk: gradio
+app_file: app.py
+pinned: false
+license: mit
+---
+
 # StreamForge — Personal YouTube Downloader Web App
 
-StreamForge is a high-speed, local personal YouTube downloader built with **FastAPI**, **yt-dlp**, and **React (Vite) + Tailwind CSS**.
+StreamForge is a high-speed personal YouTube and web media downloader built with **Gradio**, **FastAPI**, **yt-dlp**, and **FFmpeg**.
 
 ---
 
