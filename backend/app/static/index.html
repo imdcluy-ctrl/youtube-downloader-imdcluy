@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>StreamForge — YouTube Downloader</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23e11d48'><polygon points='5 3 19 12 5 21 5 3'/></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#fff1f2',
+              100: '#ffe4e6',
+              500: '#f43f5e',
+              600: '#e11d48',
+              700: '#be123c',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <!-- Lucide Icons via CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col transition-colors duration-200">
+
+  <!-- ================= HEADER ================= -->
+  <header class="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      
+      <!-- Brand -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-rose-600 to-red-500 flex items-center justify-center text-white shadow-lg shadow-rose-500/25">
+          <i data-lucide="download" class="w-5 h-5 stroke-[2.5]"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-lg text-slate-900 dark:text-white tracking-tight">StreamForge</h1>
+            <span class="text-[10px] font-semibold tracking-wider uppercase px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-400 border border-rose-200 dark:border-rose-900">
+              PRO
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Personal High-Speed YouTube Downloader</p>
+        </div>
+      </div>
+
+      <!-- Controls -->
+      <div class="flex items-center gap-2 sm:gap-3 flex-wrap justify-end">
+        
+        <!-- FFmpeg Status Badge -->
+        <div id="ffmpegBadge" class="hidden items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg border"></div>
+
+        <!-- Download Directory Chip -->
+        <div class="flex items-center gap-1 text-xs bg-slate-100 dark:bg-slate-800/80 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 max-w-xs">
+          <i data-lucide="hard-drive" class="w-3.5 h-3.5 text-slate-500 flex-shrink-0"></i>
+          <button id="destFolderBtn" class="truncate font-mono text-[11px] text-slate-700 dark:text-slate-300 hover:text-rose-600 dark:hover:text-rose-400 max-w-[140px] sm:max-w-[180px]">
+            Loading...
+          </button>
+          <button id="openFolderBtn" title="Open download folder in Windows Explorer" class="p-1 rounded text-slate-500 hover:text-slate-800 dark:hover:text-slate-100">
+            <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+        <!-- Dark/Light Theme Button -->
+        <button id="themeToggleBtn" class="p-2 rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+          <i id="themeIcon" data-lucide="moon" class="w-4 h-4"></i>
+        </button>
+
+        <!-- WebSocket Status Indicator -->
+        <div id="wsIndicator" title="Connecting..." class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"></div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= MAIN ================= -->
+  <main class="flex-grow pt-4">
+
+    <!-- Error Alert Box -->
+    <div id="errorAlert" class="hidden max-w-4xl mx-auto px-4 mb-4">
+      <div class="flex items-center justify-between p-3.5 rounded-xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-400 text-xs">
+        <div class="flex items-center gap-2">
+          <i data-lucide="alert-circle" class="w-4 h-4 flex-shrink-0"></i>
+          <span id="errorMessage">Error</span>
+        </div>
+        <button onclick="hideError()" class="p-1 hover:text-red-900 dark:hover:text-red-200">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- URL Input & 1-Click Presets -->
+    <div class="w-full max-w-4xl mx-auto my-6 px-4">
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 sm:p-6 shadow-xl shadow-slate-200/50 dark:shadow-none">
+        
+        <form id="urlForm" class="flex flex-col sm:flex-row gap-2 relative">
+          <div class="relative flex-grow">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
+              <i data-lucide="search" class="w-5 h-5"></i>
+            </div>
+            <input
+              id="urlInput"
+              type="text"
+              placeholder="Paste YouTube video or playlist link here..."
+              class="w-full pl-11 pr-24 py-3.5 bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700/80 rounded-xl text-sm sm:text-base text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-rose-500/50 focus:border-rose-500 transition-all shadow-inner"
+            />
+            <button
+              type="button"
+              id="pasteBtn"
+              title="Paste from clipboard"
+              class="absolute inset-y-1.5 right-2 px-2.5 flex items-center gap-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-700/60 rounded-lg transition-colors"
+            >
+              <i data-lucide="clipboard" class="w-3.5 h-3.5"></i>
+              <span>Paste</span>
+            </button>
+          </div>
+
+          <button
+            id="inspectBtn"
+            type="submit"
+            class="flex items-center justify-center gap-2 px-6 py-3.5 bg-rose-600 hover:bg-rose-500 text-white font-semibold rounded-xl shadow-lg shadow-rose-600/30 transition-all flex-shrink-0"
+          >
+            <i id="inspectIcon" data-lucide="sparkles" class="w-5 h-5"></i>
+            <span id="inspectText">Inspect Media</span>
+          </button>
+        </form>
+
+        <!-- Presets -->
+        <div class="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            Quick 1-Click Presets:
+          </span>
+          <div class="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onclick="triggerPreset('video', '1080p')"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors"
+            >
+              <i data-lucide="film" class="w-3.5 h-3.5 text-rose-500"></i>
+              1080p MP4
+            </button>
+            <button
+              type="button"
+              onclick="triggerPreset('video', '2160p')"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors"
+            >
+              <i data-lucide="clapperboard" class="w-3.5 h-3.5 text-indigo-500"></i>
+              Best 4K Video
+            </button>
+            <button
+              type="button"
+              onclick="triggerPreset('audio', '320kbps')"
+              class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-950/40 dark:hover:text-rose-400 transition-colors"
+            >
+              <i data-lucide="music" class="w-3.5 h-3.5 text-emerald-500"></i>
+              320k MP3 Audio
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Media Inspector Preview Section -->
+    <div id="inspectorSection" class="hidden w-full max-w-4xl mx-auto mb-8 px-4"></div>
+
+    <!-- Active Download Queue -->
+    <div id="queueSection" class="hidden w-full max-w-4xl mx-auto mb-8 px-4">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="font-bold text-sm text-slate-800 dark:text-slate-200 flex items-center gap-2">
+          <i data-lucide="layers" class="w-4 h-4 text-rose-500"></i>
+          Active Download Queue (<span id="queueCount">0</span>)
+        </h3>
+        <span class="text-xs text-slate-400">Smart Queue (Max 2 Parallel)</span>
+      </div>
+      <div id="queueList" class="space-y-3"></div>
+    </div>
+
+    <!-- Download History -->
+    <div class="w-full max-w-4xl mx-auto mb-16 px-4">
+      <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 sm:p-6 shadow-sm">
+        
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100 dark:border-slate-800">
+          <div class="flex items-center gap-2">
+            <i data-lucide="history" class="w-5 h-5 text-rose-500"></i>
+            <h3 class="font-bold text-base text-slate-900 dark:text-white">Download History</h3>
+            <span id="historyCount" class="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-semibold">0</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <div class="relative">
+              <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2"></i>
+              <input
+                id="historyFilterInput"
+                type="text"
+                placeholder="Filter history..."
+                class="text-xs pl-8 pr-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-rose-500"
+              />
+            </div>
+            <button onclick="clearHistory()" class="text-xs text-slate-500 hover:text-red-600 transition-colors px-2 py-1">
+              Clear All
+            </button>
+          </div>
+        </div>
+
+        <div id="historyList" class="divide-y divide-slate-100 dark:divide-slate-800/80 mt-2"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Playlist Modal -->
+  <div id="playlistModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+      <div class="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-rose-600 text-white flex items-center justify-center">
+            <i data-lucide="layers" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 id="modalPlaylistTitle" class="font-bold text-base text-slate-900 dark:text-white line-clamp-1">Playlist</h2>
+            <p id="modalPlaylistSubtitle" class="text-xs text-slate-500 dark:text-slate-400">0 items</p>
+          </div>
+        </div>
+        <button onclick="closePlaylistModal()" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-4 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
+        <div class="flex items-center gap-2">
+          <span class="font-semibold text-slate-600 dark:text-slate-300">Format:</span>
+          <select id="modalFormatSelect" class="bg-white dark:bg-slate-700 border border-slate-300 dark:border-slate-600 rounded-lg px-2 py-1 text-slate-900 dark:text-white">
+            <option value="video:1080p">1080p MP4 Video</option>
+            <option value="video:720p">720p MP4 Video</option>
+            <option value="video:2160p">4K MP4 Video</option>
+            <option value="audio:mp3">320kbps MP3 Audio</option>
+          </select>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="selectAllPlaylistItems(true)" class="text-slate-600 dark:text-slate-300 hover:text-rose-600 font-medium">Select All</button>
+          <span class="text-slate-300 dark:text-slate-600">•</span>
+          <button onclick="selectAllPlaylistItems(false)" class="text-slate-600 dark:text-slate-300 hover:text-rose-600 font-medium">Deselect All</button>
+        </div>
+      </div>
+
+      <div id="modalItemsList" class="flex-grow overflow-y-auto p-4 space-y-2"></div>
+
+      <div class="p-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between bg-white dark:bg-slate-900">
+        <span id="modalSelectedCount" class="text-xs font-medium text-slate-500">0 items selected</span>
+        <div class="flex gap-2">
+          <button onclick="closePlaylistModal()" class="px-4 py-2 text-xs font-medium rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-100">Cancel</button>
+          <button onclick="confirmPlaylistDownload()" class="flex items-center gap-1.5 px-5 py-2 text-xs font-semibold rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-md shadow-rose-600/25">
+            <i data-lucide="download" class="w-4 h-4"></i> Download Selected
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Folder Edit Modal -->
+  <div id="folderModal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl">
+      <h3 class="font-bold text-slate-900 dark:text-white mb-2 text-base flex items-center gap-2">
+        <i data-lucide="folder" class="w-5 h-5 text-rose-500"></i>
+        Set Download Destination
+      </h3>
+      <p class="text-xs text-slate-500 dark:text-slate-400 mb-4">
+        Enter the folder path where downloaded videos and audio files will be saved.
+      </p>
+      <form onsubmit="saveCustomFolder(event)" class="space-y-4">
+        <input id="folderInput" type="text" class="w-full text-xs font-mono px-3 py-2.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500" />
+        <div class="flex justify-end gap-2">
+          <button type="button" onclick="closeFolderModal()" class="px-3 py-1.5 text-xs rounded-lg text-slate-600 dark:text-slate-400 hover:bg-slate-100">Cancel</button>
+          <button type="submit" class="px-4 py-1.5 text-xs font-medium rounded-lg bg-rose-600 text-white">Save Folder</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-200 dark:border-slate-800/80 py-4 text-center text-xs text-slate-400 mt-auto">
+    <p>StreamForge • Powered by FastAPI & yt-dlp • Local Personal Downloader</p>
+  </footer>
+
+  <!-- ================= JAVASCRIPT LOGIC ================= -->
+  <script>
+    let appSettings = null;
+    let activeTasks = {};
+    let downloadHistory = [];
+    let currentPlaylistData = null;
+    let selectedPlaylistIndices = [];
+    let selectedMediaType = 'video';
+    let selectedQuality = '1080p';
+    let selectedAudioFormat = 'mp3';
+
+    // Initialize Theme
+    function initTheme() {
+      const isDark = localStorage.getItem('theme') === 'dark' || 
+        (!localStorage.getItem('theme') && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      if (isDark) {
+        document.documentElement.classList.add('dark');
+        document.getElementById('themeIcon').setAttribute('data-lucide', 'sun');
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.getElementById('themeIcon').setAttribute('data-lucide', 'moon');
+      }
+      lucide.createIcons();
+    }
+
+    document.getElementById('themeToggleBtn').addEventListener('click', () => {
+      const isDark = document.documentElement.classList.toggle('dark');
+      localStorage.setItem('theme', isDark ? 'dark' : 'light');
+      document.getElementById('themeIcon').setAttribute('data-lucide', isDark ? 'sun' : 'moon');
+      lucide.createIcons();
+    });
+
+    // Formatting helpers
+    function formatBytes(bytes) {
+      if (!bytes || bytes <= 0) return '0 B';
+      const k = 1024;
+      const sizes = ['B', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return (bytes / Math.pow(k, i)).toFixed(1) + ' ' + sizes[i];
+    }
+    function formatSpeed(bytesPerSec) {
+      if (!bytesPerSec || bytesPerSec <= 0) return '0 KB/s';
+      const mb = bytesPerSec / (1024 * 1024);
+      if (mb >= 1) return mb.toFixed(1) + ' MB/s';
+      return (bytesPerSec / 1024).toFixed(0) + ' KB/s';
+    }
+    function formatEta(seconds) {
+      if (!seconds || seconds <= 0) return '--';
+      if (seconds < 60) return Math.round(seconds) + 's';
+      return Math.floor(seconds / 60) + 'm ' + Math.round(seconds % 60) + 's';
+    }
+
+    // Alerts
+    function showError(msg) {
+      document.getElementById('errorMessage').innerText = msg;
+      document.getElementById('errorAlert').classList.remove('hidden');
+    }
+    function hideError() {
+      document.getElementById('errorAlert').classList.add('hidden');
+    }
+
+    // Load Settings
+    async function loadSettings() {
+      try {
+        const res = await fetch('/api/settings');
+        appSettings = await res.json();
+        document.getElementById('destFolderBtn').innerText = appSettings.download_dir;
+        
+        const badge = document.getElementById('ffmpegBadge');
+        badge.classList.remove('hidden', 'flex');
+        badge.classList.add('flex');
+        if (appSettings.ffmpeg_available) {
+          badge.className = 'flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900';
+          badge.innerHTML = `<i data-lucide="check-circle-2" class="w-3.5 h-3.5"></i><span class="font-medium hidden md:inline">FFmpeg Ready</span>`;
+        } else {
+          badge.className = 'cursor-pointer flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-900 hover:bg-amber-100';
+          badge.innerHTML = `<i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-amber-500"></i><span class="font-semibold">Get FFmpeg</span>`;
+          badge.onclick = installFFmpeg;
+        }
+        lucide.createIcons();
+      } catch (e) {
+        console.error('Settings load error:', e);
+      }
+    }
+
+    async function installFFmpeg() {
+      const badge = document.getElementById('ffmpegBadge');
+      badge.innerHTML = `<i data-lucide="refresh-cw" class="w-3.5 h-3.5 animate-spin"></i><span>Installing...</span>`;
+      lucide.createIcons();
+      try {
+        await fetch('/api/ffmpeg/install', { method: 'POST' });
+        await loadSettings();
+      } catch (err) {
+        alert('Could not auto-install FFmpeg. Please install FFmpeg on Windows.');
+      }
+    }
+
+    // Folder Actions
+    document.getElementById('openFolderBtn').addEventListener('click', () => {
+      fetch('/api/open-folder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: appSettings?.download_dir })
+      });
+    });
+
+    document.getElementById('destFolderBtn').addEventListener('click', () => {
+      document.getElementById('folderInput').value = appSettings?.download_dir || '';
+      document.getElementById('folderModal').classList.remove('hidden');
+    });
+    function closeFolderModal() {
+      document.getElementById('folderModal').classList.add('hidden');
+    }
+    async function saveCustomFolder(e) {
+      e.preventDefault();
+      const path = document.getElementById('folderInput').value.trim();
+      if (!path) return;
+      try {
+        const res = await fetch('/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ download_dir: path })
+        });
+        if (res.ok) {
+          closeFolderModal();
+          await loadSettings();
+        } else {
+          alert('Invalid folder path');
+        }
+      } catch (err) {
+        alert('Failed to save folder');
+      }
+    }
+
+    // Paste Action
+    document.getElementById('pasteBtn').addEventListener('click', async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text && text.includes('http')) {
+          document.getElementById('urlInput').value = text.trim();
+          inspectUrl(text.trim());
+        }
+      } catch (e) {}
+    });
+
+    // Form Submit
+    document.getElementById('urlForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const url = document.getElementById('urlInput').value.trim();
+      if (url) inspectUrl(url);
+    });
+
+    // Inspect URL
+    async function inspectUrl(url) {
+      hideError();
+      const btn = document.getElementById('inspectBtn');
+      const text = document.getElementById('inspectText');
+      const icon = document.getElementById('inspectIcon');
+      btn.disabled = true;
+      text.innerText = 'Inspecting...';
+      icon.setAttribute('data-lucide', 'loader-2');
+      icon.classList.add('animate-spin');
+      lucide.createIcons();
+
+      try {
+        const res = await fetch('/api/info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || 'Failed to inspect URL');
+        }
+        const data = await res.json();
+        renderInspector(data);
+      } catch (err) {
+        showError(err.message);
+      } finally {
+        btn.disabled = false;
+        text.innerText = 'Inspect Media';
+        icon.setAttribute('data-lucide', 'sparkles');
+        icon.classList.remove('animate-spin');
+        lucide.createIcons();
+      }
+    }
+
+    // Render Inspector
+    function renderInspector(info) {
+      const sec = document.getElementById('inspectorSection');
+      sec.classList.remove('hidden');
+
+      if (info.is_playlist) {
+        currentPlaylistData = info;
+        selectedPlaylistIndices = info.items.map((_, i) => i);
+        sec.innerHTML = `
+          <div class="bg-gradient-to-r from-rose-600/10 via-purple-600/10 to-indigo-600/10 border border-rose-200 dark:border-rose-900/50 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-4">
+              <div class="w-14 h-14 rounded-xl bg-rose-600 text-white flex items-center justify-center flex-shrink-0 shadow-lg shadow-rose-600/25">
+                <i data-lucide="layers" class="w-7 h-7"></i>
+              </div>
+              <div>
+                <span class="text-[11px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">Playlist Detected</span>
+                <h2 class="text-lg font-bold text-slate-900 dark:text-white line-clamp-1">${info.title}</h2>
+                <p class="text-xs text-slate-500 dark:text-slate-400">${info.uploader} • ${info.item_count} tracks ready</p>
+              </div>
+            </div>
+            <button onclick="openPlaylistModal()" class="flex items-center gap-2 px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-sm shadow-md shadow-rose-600/20">
+              <i data-lucide="list-music" class="w-4 h-4"></i> Select Tracks (${info.item_count})
+            </button>
+          </div>
+        `;
+        lucide.createIcons();
+        openPlaylistModal();
+        return;
+      }
+
+      const item = info.items[0];
+      selectedMediaType = 'video';
+      selectedQuality = '1080p';
+      selectedAudioFormat = 'mp3';
+
+      sec.innerHTML = `
+        <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-xl shadow-slate-200/50 dark:shadow-none">
+          <div class="flex flex-col md:flex-row">
+            <div class="md:w-5/12 relative aspect-video md:aspect-auto bg-black flex-shrink-0">
+              <img src="${item.thumbnail || ''}" class="w-full h-full object-cover" />
+              <div class="absolute bottom-2 right-2 bg-black/80 text-white font-mono text-xs px-2 py-1 rounded">
+                ${item.duration_string}
+              </div>
+            </div>
+            <div class="p-5 md:p-6 flex-grow flex flex-col justify-between">
+              <div>
+                <h2 class="font-bold text-base sm:text-lg text-slate-900 dark:text-white line-clamp-2 mb-1">${item.title}</h2>
+                <div class="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400 mb-4">
+                  <span>${item.uploader}</span>
+                  <span>${item.duration_string}</span>
+                </div>
+
+                <div class="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-xl mb-4 w-fit">
+                  <button id="tabVideo" onclick="switchTab('video')" class="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-sm">
+                    <i data-lucide="film" class="w-3.5 h-3.5"></i> Video (MP4)
+                  </button>
+                  <button id="tabAudio" onclick="switchTab('audio')" class="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-400">
+                    <i data-lucide="music" class="w-3.5 h-3.5"></i> Audio Only
+                  </button>
+                </div>
+
+                <div id="videoOptions" class="space-y-2">
+                  <label class="text-xs font-semibold text-slate-500 dark:text-slate-400">Resolution Quality</label>
+                  <div class="flex flex-wrap gap-2">
+                    ${['2160p', '1440p', '1080p', '720p', '480p'].map(q => `
+                      <button onclick="setQuality('${q}')" id="qBtn_${q}" class="q-btn px-3 py-1.5 text-xs rounded-lg font-medium border ${q === '1080p' ? 'bg-rose-600 border-rose-600 text-white' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300'}">
+                        ${q === '2160p' ? '4K (2160p)' : q === '1440p' ? '2K (1440p)' : q}
+                      </button>
+                    `).join('')}
+                  </div>
+                </div>
+
+                <div id="audioOptions" class="space-y-2 hidden">
+                  <label class="text-xs font-semibold text-slate-500 dark:text-slate-400">Audio Format (Includes embedded cover art & ID3 tags)</label>
+                  <div class="flex flex-wrap gap-2">
+                    <button onclick="setAudioFmt('mp3')" id="aBtn_mp3" class="a-btn px-3 py-1.5 text-xs rounded-lg font-medium border bg-rose-600 border-rose-600 text-white">MP3 (320k High Quality)</button>
+                    <button onclick="setAudioFmt('m4a')" id="aBtn_m4a" class="a-btn px-3 py-1.5 text-xs rounded-lg font-medium border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300">M4A (AAC Audio)</button>
+                    <button onclick="setAudioFmt('wav')" id="aBtn_wav" class="a-btn px-3 py-1.5 text-xs rounded-lg font-medium border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300">WAV (Lossless)</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                <button onclick="startDownloadSingle('${item.url}')" class="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold text-sm shadow-lg shadow-rose-600/30">
+                  <i data-lucide="download" class="w-4 h-4"></i> Download Now
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      lucide.createIcons();
+    }
+
+    function switchTab(tab) {
+      selectedMediaType = tab;
+      const vOpt = document.getElementById('videoOptions');
+      const aOpt = document.getElementById('audioOptions');
+      const vTab = document.getElementById('tabVideo');
+      const aTab = document.getElementById('tabAudio');
+      if (tab === 'video') {
+        vOpt.classList.remove('hidden');
+        aOpt.classList.add('hidden');
+        vTab.className = 'flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-sm';
+        aTab.className = 'flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-400';
+      } else {
+        vOpt.classList.add('hidden');
+        aOpt.classList.remove('hidden');
+        aTab.className = 'flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-400 shadow-sm';
+        vTab.className = 'flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-600 dark:text-slate-400';
+      }
+      lucide.createIcons();
+    }
+
+    function setQuality(q) {
+      selectedQuality = q;
+      document.querySelectorAll('.q-btn').forEach(btn => {
+        btn.className = 'q-btn px-3 py-1.5 text-xs rounded-lg font-medium border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
+      });
+      document.getElementById('qBtn_' + q).className = 'q-btn px-3 py-1.5 text-xs rounded-lg font-medium border bg-rose-600 border-rose-600 text-white';
+    }
+
+    function setAudioFmt(fmt) {
+      selectedAudioFormat = fmt;
+      document.querySelectorAll('.a-btn').forEach(btn => {
+        btn.className = 'a-btn px-3 py-1.5 text-xs rounded-lg font-medium border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300';
+      });
+      document.getElementById('aBtn_' + fmt).className = 'a-btn px-3 py-1.5 text-xs rounded-lg font-medium border bg-rose-600 border-rose-600 text-white';
+    }
+
+    // 1-Click Preset download
+    async function triggerPreset(type, quality) {
+      const url = document.getElementById('urlInput').value.trim();
+      if (!url) {
+        showError('Please paste a YouTube link first');
+        return;
+      }
+      hideError();
+      try {
+        await fetch('/api/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url,
+            media_type: type,
+            quality,
+            audio_format: 'mp3'
+          })
+        });
+      } catch (err) {
+        showError('Failed to queue download');
+      }
+    }
+
+    async function startDownloadSingle(url) {
+      hideError();
+      try {
+        await fetch('/api/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url,
+            media_type: selectedMediaType,
+            quality: selectedQuality,
+            audio_format: selectedAudioFormat
+          })
+        });
+        document.getElementById('inspectorSection').classList.add('hidden');
+      } catch (err) {
+        showError('Failed to start download');
+      }
+    }
+
+    // Playlist Modal
+    function openPlaylistModal() {
+      if (!currentPlaylistData) return;
+      document.getElementById('modalPlaylistTitle').innerText = currentPlaylistData.title;
+      document.getElementById('modalPlaylistSubtitle').innerText = currentPlaylistData.item_count + ' items';
+      renderPlaylistItems();
+      document.getElementById('playlistModal').classList.remove('hidden');
+    }
+    function closePlaylistModal() {
+      document.getElementById('playlistModal').classList.add('hidden');
+    }
+    function selectAllPlaylistItems(select) {
+      if (select) {
+        selectedPlaylistIndices = currentPlaylistData.items.map((_, i) => i);
+      } else {
+        selectedPlaylistIndices = [];
+      }
+      renderPlaylistItems();
+    }
+    function togglePlaylistIndex(idx) {
+      if (selectedPlaylistIndices.includes(idx)) {
+        selectedPlaylistIndices = selectedPlaylistIndices.filter(i => i !== idx);
+      } else {
+        selectedPlaylistIndices.push(idx);
+      }
+      renderPlaylistItems();
+    }
+    function renderPlaylistItems() {
+      const container = document.getElementById('modalItemsList');
+      document.getElementById('modalSelectedCount').innerText = selectedPlaylistIndices.length + ' of ' + currentPlaylistData.items.length + ' selected';
+      container.innerHTML = currentPlaylistData.items.map((item, idx) => {
+        const isSel = selectedPlaylistIndices.includes(idx);
+        return `
+          <div onclick="togglePlaylistIndex(${idx})" class="p-2 rounded-xl flex items-center gap-3 cursor-pointer transition-colors ${isSel ? 'bg-rose-50/50 dark:bg-rose-950/20' : 'opacity-60'}">
+            <i data-lucide="${isSel ? 'check-square' : 'square'}" class="w-5 h-5 ${isSel ? 'text-rose-600 fill-rose-600' : 'text-slate-400'} flex-shrink-0"></i>
+            <div class="w-16 h-10 rounded-lg overflow-hidden bg-slate-200 dark:bg-slate-800 flex-shrink-0 relative">
+              <img src="${item.thumbnail || ''}" class="w-full h-full object-cover" />
+              <span class="absolute bottom-0.5 right-0.5 bg-black/80 text-[9px] text-white font-mono px-1 rounded">${item.duration_string}</span>
+            </div>
+            <div class="flex-grow min-w-0">
+              <h4 class="text-xs font-semibold text-slate-900 dark:text-white truncate">${idx + 1}. ${item.title}</h4>
+              <p class="text-[11px] text-slate-500 dark:text-slate-400 truncate">${item.uploader}</p>
+            </div>
+          </div>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+    async function confirmPlaylistDownload() {
+      if (selectedPlaylistIndices.length === 0) return;
+      const fmtVal = document.getElementById('modalFormatSelect').value;
+      const [mType, quality] = fmtVal.split(':');
+      try {
+        await fetch('/api/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: currentPlaylistData.items[0].url,
+            media_type: mType,
+            quality: quality,
+            audio_format: quality === 'mp3' ? 'mp3' : 'mp3',
+            is_playlist: true,
+            selected_indices: selectedPlaylistIndices
+          })
+        });
+        closePlaylistModal();
+        document.getElementById('inspectorSection').classList.add('hidden');
+      } catch (e) {
+        showError('Failed to queue playlist');
+      }
+    }
+
+    // Active Queue Management
+    function renderQueue() {
+      const tasks = Object.values(activeTasks);
+      const sec = document.getElementById('queueSection');
+      const list = document.getElementById('queueList');
+      const count = document.getElementById('queueCount');
+      count.innerText = tasks.length;
+
+      if (tasks.length === 0) {
+        sec.classList.add('hidden');
+        return;
+      }
+      sec.classList.remove('hidden');
+
+      list.innerHTML = tasks.map(task => {
+        const isDownloading = task.status === 'downloading';
+        const isProcessing = task.status === 'processing';
+        const isQueued = task.status === 'queued';
+        const isFailed = task.status === 'failed';
+
+        return `
+          <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm relative overflow-hidden">
+            <div class="absolute inset-y-0 left-0 bg-rose-500/10 pointer-events-none transition-all duration-300" style="width: ${task.percent || 0}%"></div>
+            <div class="relative flex items-center gap-3 sm:gap-4">
+              <div class="w-16 h-12 rounded-xl bg-slate-100 dark:bg-slate-800 overflow-hidden flex-shrink-0 relative">
+                ${task.thumbnail ? `<img src="${task.thumbnail}" class="w-full h-full object-cover"/>` : `<div class="w-full h-full flex items-center justify-center text-slate-400"><i data-lucide="${task.media_type === 'audio' ? 'music' : 'film'}" class="w-5 h-5"></i></div>`}
+                <span class="absolute bottom-0.5 right-0.5 text-[9px] font-semibold bg-black/80 text-white px-1 rounded uppercase">${task.media_type === 'audio' ? task.audio_format : task.quality}</span>
+              </div>
+              <div class="flex-grow min-w-0">
+                <div class="flex items-center justify-between gap-2 mb-1">
+                  <h4 class="font-semibold text-xs sm:text-sm text-slate-900 dark:text-white truncate">${task.title || 'Processing video stream...'}</h4>
+                  <div class="flex items-center gap-1.5 flex-shrink-0">
+                    ${isQueued ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 font-medium">Queued</span>` : ''}
+                    ${isDownloading ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-rose-100 dark:bg-rose-950/60 text-rose-600 font-bold flex items-center gap-1"><i data-lucide="arrow-down" class="w-3 h-3 animate-bounce"></i> ${(task.percent || 0).toFixed(0)}%</span>` : ''}
+                    ${isProcessing ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 font-semibold flex items-center gap-1"><i data-lucide="loader-2" class="w-3 h-3 animate-spin"></i> Merging...</span>` : ''}
+                    ${isFailed ? `<span class="text-[11px] px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 font-semibold flex items-center gap-1"><i data-lucide="alert-circle" class="w-3 h-3"></i> Failed</span>` : ''}
+                  </div>
+                </div>
+                <div class="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden my-2">
+                  <div class="h-full transition-all duration-300 rounded-full ${isFailed ? 'bg-red-500' : isProcessing ? 'bg-indigo-500 animate-pulse' : 'bg-gradient-to-r from-rose-600 to-red-500'}" style="width: ${task.percent || 0}%"></div>
+                </div>
+                <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                  <div class="flex items-center gap-3">
+                    ${task.speed > 0 ? `<span class="flex items-center gap-1"><i data-lucide="gauge" class="w-3 h-3"></i> ${formatSpeed(task.speed)}</span>` : ''}
+                    ${task.eta > 0 ? `<span class="flex items-center gap-1"><i data-lucide="hourglass" class="w-3 h-3"></i> ETA: ${formatEta(task.eta)}</span>` : ''}
+                    ${task.downloaded_bytes > 0 ? `<span>${formatBytes(task.downloaded_bytes)} ${task.total_bytes > 0 ? '/ ' + formatBytes(task.total_bytes) : ''}</span>` : ''}
+                  </div>
+                  ${task.error_message ? `<span class="text-red-500 truncate max-w-xs">${task.error_message}</span>` : ''}
+                </div>
+              </div>
+              <button onclick="cancelTask('${task.task_id}')" title="Cancel download" class="p-2 rounded-xl text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors flex-shrink-0">
+                <i data-lucide="x" class="w-4 h-4"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    async function cancelTask(taskId) {
+      await fetch('/api/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ task_id: taskId })
+      });
+      delete activeTasks[taskId];
+      renderQueue();
+    }
+
+    // History
+    async function loadHistory() {
+      try {
+        const res = await fetch('/api/history');
+        downloadHistory = await res.json();
+        renderHistory();
+      } catch (e) {}
+    }
+
+    function renderHistory() {
+      const q = (document.getElementById('historyFilterInput').value || '').toLowerCase();
+      const filtered = downloadHistory.filter(h => (h.title || '').toLowerCase().includes(q));
+      document.getElementById('historyCount').innerText = downloadHistory.length;
+      const list = document.getElementById('historyList');
+
+      if (filtered.length === 0) {
+        list.innerHTML = `<div class="py-8 text-center text-slate-400 text-xs">${downloadHistory.length === 0 ? 'No downloads yet. Paste a link above!' : 'No downloads match filter.'}</div>`;
+        return;
+      }
+
+      list.innerHTML = filtered.map(item => {
+        const isOk = item.status === 'completed';
+        const dateStr = new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        return `
+          <div class="py-3 flex items-center justify-between gap-3 group">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-14 h-10 rounded-lg bg-slate-100 dark:bg-slate-800 overflow-hidden flex-shrink-0">
+                ${item.thumbnail ? `<img src="${item.thumbnail}" class="w-full h-full object-cover"/>` : `<div class="w-full h-full flex items-center justify-center text-slate-400"><i data-lucide="${item.media_type === 'audio' ? 'music' : 'film'}" class="w-4 h-4"></i></div>`}
+              </div>
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <i data-lucide="${isOk ? 'check-circle-2' : 'x-circle'}" class="w-3.5 h-3.5 ${isOk ? 'text-emerald-500' : 'text-red-500'} flex-shrink-0"></i>
+                  <h4 class="font-semibold text-xs text-slate-900 dark:text-white truncate">${item.title || 'Untitled'}</h4>
+                </div>
+                <div class="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                  <span class="font-medium text-slate-600 dark:text-slate-300">${item.format_desc}</span>
+                  ${item.file_size > 0 ? `<span>• ${formatBytes(item.file_size)}</span>` : ''}
+                  <span>• ${dateStr}</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center gap-1 flex-shrink-0">
+              ${isOk && item.file_path ? `
+                <button onclick="revealFile('${item.file_path.replace(/\\/g, '\\\\')}')" title="Show in File Explorer" class="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-600 dark:text-slate-300 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40">
+                  <i data-lucide="folder-open" class="w-3.5 h-3.5"></i>
+                  <span class="hidden sm:inline">Show in Folder</span>
+                </button>
+              ` : ''}
+              <button onclick="deleteHistoryItem(${item.id})" class="p-1.5 rounded-lg text-slate-400 hover:text-red-500">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
+      lucide.createIcons();
+    }
+
+    document.getElementById('historyFilterInput').addEventListener('input', renderHistory);
+
+    async function revealFile(filePath) {
+      await fetch('/api/open-folder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: filePath })
+      });
+    }
+
+    async function deleteHistoryItem(id) {
+      await fetch('/api/history/' + id, { method: 'DELETE' });
+      await loadHistory();
+    }
+
+    async function clearHistory() {
+      if (confirm('Clear download history? (Files on disk will remain safe)')) {
+        await fetch('/api/history/clear', { method: 'POST' });
+        await loadHistory();
+      }
+    }
+
+    // WebSocket Connection
+    function connectWS() {
+      const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = protocol + '//' + location.host + '/ws';
+      const ws = new WebSocket(wsUrl);
+      const ind = document.getElementById('wsIndicator');
+
+      ws.onopen = () => {
+        ind.className = 'w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20';
+        ind.title = 'Live WebSocket Connected';
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const msg = JSON.parse(e.data);
+          if (msg.type === 'task_added') {
+            activeTasks[msg.task.task_id] = msg.task;
+            renderQueue();
+          } else if (msg.type === 'task_progress') {
+            activeTasks[msg.data.task_id] = msg.data;
+            renderQueue();
+          } else if (msg.type === 'task_completed') {
+            delete activeTasks[msg.task_id];
+            renderQueue();
+            loadHistory();
+          } else if (msg.type === 'task_cancelled') {
+            delete activeTasks[msg.task_id];
+            renderQueue();
+            loadHistory();
+          } else if (msg.type === 'task_failed') {
+            if (activeTasks[msg.task_id]) {
+              activeTasks[msg.task_id].status = 'failed';
+              activeTasks[msg.task_id].error_message = msg.error;
+            }
+            renderQueue();
+            loadHistory();
+          }
+        } catch (err) {}
+      };
+
+      ws.onclose = () => {
+        ind.className = 'w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse';
+        ind.title = 'Reconnecting...';
+        setTimeout(connectWS, 3000);
+      };
+    }
+
+    // Init App
+    window.addEventListener('DOMContentLoaded', async () => {
+      initTheme();
+      await loadSettings();
+      await loadHistory();
+      connectWS();
+      
+      // Load initial active tasks
+      try {
+        const res = await fetch('/api/tasks');
+        const tasks = await res.json();
+        tasks.forEach(t => { activeTasks[t.task_id] = t; });
+        renderQueue();
+      } catch (e) {}
+    });
+  </script>
+</body>
+</html>
