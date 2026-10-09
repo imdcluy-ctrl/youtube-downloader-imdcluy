@@ -6,7 +6,7 @@ export function useWebSocket(onTaskFinished?: () => void) {
   const [activeTasks, setActiveTasks] = useState<Record<string, DownloadTask>>({});
   const [isConnected, setIsConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout>();
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>();
 
   const loadInitialTasks = useCallback(async () => {
     try {
