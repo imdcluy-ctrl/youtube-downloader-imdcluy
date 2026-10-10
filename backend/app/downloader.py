@@ -2,6 +2,7 @@ import asyncio
 import os
 import re
 import glob
+import tempfile
 from pathlib import Path
 from typing import Dict, Any, Optional, Callable
 import yt_dlp
@@ -13,6 +14,30 @@ class DownloadCancelledException(Exception):
     """Raised when a download is cancelled by the user."""
     pass
 
+def get_base_ydl_opts(custom_cookies: Optional[str] = None) -> Dict[str, Any]:
+    """Provides base yt-dlp options with mobile player_client and cookie support to bypass bot checks."""
+    opts: Dict[str, Any] = {
+        'quiet': True,
+        'no_warnings': True,
+        'nocheckcertificate': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'mweb']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+        }
+    }
+    cookie_str = custom_cookies or os.environ.get("YOUTUBE_COOKIES") or os.environ.get("COOKIES_TXT")
+    if cookie_str:
+        cookie_file = Path(tempfile.gettempdir()) / "yt_cookies.txt"
+        cookie_file.write_text(cookie_str.strip(), encoding="utf-8")
+        opts['cookiefile'] = str(cookie_file)
+    elif os.path.exists("cookies.txt"):
+        opts['cookiefile'] = "cookies.txt"
+    return opts
+
 def format_duration(seconds: Optional[int]) -> str:
     if not seconds:
         return "0:00"
@@ -22,14 +47,13 @@ def format_duration(seconds: Optional[int]) -> str:
         return f"{h}:{m:02d}:{s:02d}"
     return f"{m}:{s:02d}"
 
-def extract_media_info(url: str) -> Dict[str, Any]:
+def extract_media_info(url: str, cookies: Optional[str] = None) -> Dict[str, Any]:
     """Synchronous extraction of video or playlist metadata."""
-    ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
+    ydl_opts = get_base_ydl_opts(cookies)
+    ydl_opts.update({
         'skip_download': True,
         'extract_flat': 'in_playlist',
-    }
+    })
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
         return info
@@ -188,14 +212,12 @@ def run_download(
             if filepath and os.path.exists(filepath):
                 final_filepath = filepath
 
-    ydl_opts: Dict[str, Any] = {
+    ydl_opts = get_base_ydl_opts()
+    ydl_opts.update({
         'outtmpl': os.path.join(download_dir, '%(title).150B [%(id)s].%(ext)s'),
         'progress_hooks': [ytdl_progress_hook],
         'postprocessor_hooks': [ytdl_postprocess_hook],
-        'quiet': True,
-        'no_warnings': True,
-        'nocheckcertificate': True,
-    }
+    })
 
     if ffmpeg_bin:
         ydl_opts['ffmpeg_location'] = ffmpeg_bin

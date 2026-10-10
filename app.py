@@ -26,21 +26,21 @@ except ImportError:
             return decorator
     spaces = MockSpaces()
 
-from backend.app.downloader import extract_media_info, parse_media_info
+from backend.app.downloader import extract_media_info, parse_media_info, get_base_ydl_opts
 from backend.app.utils.ffmpeg import get_ffmpeg_path
 
 # Download directory with guaranteed write permissions
 DOWNLOAD_DIR = Path(tempfile.gettempdir()) / "streamforge_downloads"
 DOWNLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-def fetch_info(url: str) -> Tuple[Optional[str], str, Any]:
+def fetch_info(url: str, cookies_text: str = "") -> Tuple[Optional[str], str, Any]:
     """Fetch video metadata and available format resolutions."""
     if not url or not url.strip():
         return None, "⚠️ Please enter a valid video or playlist URL.", gr.update(choices=[], value=None)
     
     url = url.strip()
     try:
-        raw_info = extract_media_info(url)
+        raw_info = extract_media_info(url, cookies=cookies_text)
         parsed = parse_media_info(raw_info, url)
         
         if parsed.is_playlist:
@@ -81,6 +81,7 @@ def download_video_or_audio(
     media_mode: str,
     video_res: str,
     audio_codec: str,
+    cookies_text: str = "",
     progress=gr.Progress(track_tqdm=True)
 ) -> Tuple[Optional[str], Optional[str], Optional[str], str]:
     """
@@ -116,14 +117,12 @@ def download_video_or_audio(
             if path and os.path.exists(path):
                 final_file = path
 
-    ydl_opts: Dict[str, Any] = {
+    ydl_opts = get_base_ydl_opts(cookies_text)
+    ydl_opts.update({
         'outtmpl': str(DOWNLOAD_DIR / '%(title).150B [%(id)s].%(ext)s'),
         'progress_hooks': [progress_hook],
         'postprocessor_hooks': [postprocess_hook],
-        'quiet': True,
-        'no_warnings': True,
-        'nocheckcertificate': True,
-    }
+    })
 
     if ffmpeg_path:
         ydl_opts['ffmpeg_location'] = ffmpeg_path
@@ -239,6 +238,13 @@ with gr.Blocks(title="StreamForge - YouTube Downloader") as demo:
         else:
             return gr.update(visible=True), gr.update(visible=False)
 
+    with gr.Accordion("🍪 Anti-Bot Bypass & Cookies (Optional)", open=False):
+        cookies_input = gr.Textbox(
+            label="YouTube Cookies (cookies.txt format)",
+            placeholder="Normally not needed (Android/iOS emulation handles it)! If a specific video is age-restricted or requires account sign-in, paste your cookies.txt here.",
+            lines=2
+        )
+
     mode_radio.change(
         fn=toggle_mode,
         inputs=[mode_radio],
@@ -247,7 +253,7 @@ with gr.Blocks(title="StreamForge - YouTube Downloader") as demo:
 
     fetch_btn.click(
         fn=fetch_info,
-        inputs=[url_input],
+        inputs=[url_input, cookies_input],
         outputs=[thumb_preview, info_markdown, quality_dropdown]
     )
 
@@ -264,7 +270,7 @@ with gr.Blocks(title="StreamForge - YouTube Downloader") as demo:
 
     download_btn.click(
         fn=download_video_or_audio,
-        inputs=[url_input, mode_radio, quality_dropdown, audio_codec_dropdown],
+        inputs=[url_input, mode_radio, quality_dropdown, audio_codec_dropdown, cookies_input],
         outputs=[video_preview, audio_preview, file_download, status_output]
     )
 
