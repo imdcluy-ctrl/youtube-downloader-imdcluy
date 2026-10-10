@@ -12,6 +12,20 @@ if str(BASE_DIR) not in sys.path:
 
 import yt_dlp
 import gradio as gr
+
+# Hugging Face ZeroGPU compatibility
+try:
+    import spaces
+except ImportError:
+    class MockSpaces:
+        def GPU(self, *args, **kwargs):
+            if len(args) == 1 and callable(args[0]):
+                return args[0]
+            def decorator(f):
+                return f
+            return decorator
+    spaces = MockSpaces()
+
 from backend.app.downloader import extract_media_info, parse_media_info
 from backend.app.utils.ffmpeg import get_ffmpeg_path
 
@@ -61,6 +75,7 @@ def fetch_info(url: str) -> Tuple[Optional[str], str, Any]:
     except Exception as e:
         return None, f"❌ **Error fetching metadata:** {str(e)}", gr.update(choices=[], value=None)
 
+@spaces.GPU(duration=120)
 def download_video_or_audio(
     url: str,
     media_mode: str,
